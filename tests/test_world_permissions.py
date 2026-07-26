@@ -64,8 +64,7 @@ def test_safe_file_not_flagged(tmp_path: Path) -> None:
 
 def test_group_readable_only_not_flagged(tmp_path: Path) -> None:
     # 640 = owner rw, group r, world nothing. This module only checks the
-    # WORLD bits - group-readable is a separate, lower-severity check we'll
-    # write next.
+    # WORLD bits - group-readable is a separate, lower-severity check
     f = tmp_path / "id_rsa"
     f.write_text("fake key")
     os.chmod(f, 0o640)
