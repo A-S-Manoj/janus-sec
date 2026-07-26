@@ -20,3 +20,5 @@ janus-sec = "janus_sec.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["janus_sec"]
+[tool.hatch.build.targets.wheel.force-include]
+"janus_sec/checks/allowlist.toml" = "janus_sec/checks/allowlist.toml"

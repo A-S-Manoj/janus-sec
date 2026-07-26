@@ -1,0 +1,16 @@
+# Known-benign group-ownership patterns.
+#
+# Each [[pattern]] suppresses (or downgrades) a group-readable finding
+# when the file's group matches `group` (and, if given, the OS matches
+# `os`). Left empty for now - only add entries once verified against
+# real machines, not speculatively.
+#
+# Example of the shape an entry will take, once verified:
+#
+# [[pattern]]
+# os = "linux"
+# group = "wheel"
+# action = "suppress"   # "suppress" or "downgrade_to_low"
+# note = "why this is considered safe"
+
+patterns = []
