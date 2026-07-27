@@ -39,7 +39,8 @@ class CheckType(str, Enum):
     GROUP_READABLE = "group_readable"
     OWNERSHIP_MISMATCH = "ownership_mismatch"
     SYMLINK_ESCAPE = "symlink_escape"
-
+    UNINSPECTABLE = "uninspectable"
+    
 
 @dataclass(frozen=True, slots=True)
 class Finding:
