@@ -1,0 +1,127 @@
+"""Tests for the CLI - argument parsing and output formatting."""
+
+import json
+
+from janus_sec.cli import build_parser, main
+from janus_sec.models import (
+    CheckType,
+    Confidence,
+    Finding,
+    FilesystemType,
+    RiskLevel,
+)
+from janus_sec.scanner import ScanResult
+
+
+def _fake_finding(risk: RiskLevel = RiskLevel.HIGH) -> Finding:
+    return Finding(
+        path="/home/ezio/.ssh/id_rsa",
+        current_mode_octal="644",
+        current_mode_human="-rw-r--r--",
+        risk_level=risk,
+        check_type=CheckType.WORLD_READABLE,
+        reason="Readable by any local user.",
+        owner="ezio",
+        expected_owner="ezio",
+        is_symlink=False,
+        filesystem_type=FilesystemType.LOCAL,
+        confidence=Confidence.HIGH,
+        suggested_fix_octal="600",
+    )
+
+
+def test_scan_subcommand_parses() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["scan"])
+
+    assert args.command == "scan"
+    assert args.format == "human"
+    assert args.ci is False
+
+
+def test_scan_with_json_and_ci_flags_parse() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["scan", "--format", "json", "--ci"])
+
+    assert args.format == "json"
+    assert args.ci is True
+
+
+def test_human_output_no_findings(monkeypatch, capsys) -> None:
+    fake_result = ScanResult(findings=[], files_scanned=3, files_missing=9)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+
+    import sys
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "No issues found." in captured.out
+    assert "Scanned 3 file(s), 9 not present." in captured.out
+
+
+def test_human_output_with_findings(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=[_fake_finding()], files_scanned=1, files_missing=11)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "[HIGH]" in captured.out
+    assert "/home/ezio/.ssh/id_rsa" in captured.out
+    assert "chmod 600" in captured.out
+
+
+def test_json_output_is_valid_json(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=[_fake_finding()], files_scanned=1, files_missing=11)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "--format", "json"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    payload = json.loads(captured.out)
+    assert payload["files_scanned"] == 1
+    assert len(payload["findings"]) == 1
+    assert payload["findings"][0]["risk_level"] == "HIGH"
+
+
+def test_ci_flag_exits_nonzero_on_high_risk(monkeypatch) -> None:
+    import sys
+    fake_result = ScanResult(findings=[_fake_finding(RiskLevel.HIGH)], files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "--ci"])
+
+    exit_code = main()
+
+    assert exit_code == 1
+
+
+def test_ci_flag_exits_zero_when_no_high_risk(monkeypatch) -> None:
+    import sys
+    fake_result = ScanResult(
+        findings=[_fake_finding(RiskLevel.LOW)], files_scanned=1, files_missing=0
+    )
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "--ci"])
+
+    exit_code = main()
+
+    assert exit_code == 0
+
+
+def test_ci_flag_exits_zero_with_no_findings_at_all(monkeypatch) -> None:
+    import sys
+    fake_result = ScanResult(findings=[], files_scanned=0, files_missing=12)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "--ci"])
+
+    exit_code = main()
+
+    assert exit_code == 0
