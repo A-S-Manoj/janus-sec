@@ -11,6 +11,7 @@ from janus_sec.models import (
     RiskLevel,
 )
 from janus_sec.scanner import ScanResult
+from janus_sec.fix import FixResult
 
 
 def _fake_finding(risk: RiskLevel = RiskLevel.HIGH) -> Finding:
@@ -125,3 +126,131 @@ def test_ci_flag_exits_zero_with_no_findings_at_all(monkeypatch) -> None:
     exit_code = main()
 
     assert exit_code == 0
+
+
+def _fake_findings_for_fix() -> list:
+    return [_fake_finding()]
+
+
+def test_fix_dry_run_makes_no_changes(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+
+    apply_calls = []
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: apply_calls.append(f) or FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "--dry-run"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Dry run" in captured.out
+    assert apply_calls == []  # apply_fix_for_finding must NOT have been called
+
+
+def test_fix_aborts_when_user_declines(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+
+    apply_calls = []
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: apply_calls.append(f) or FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "Aborted" in captured.out
+    assert apply_calls == []
+
+
+def test_fix_applies_when_user_confirms(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr("janus_sec.cli.append_entry", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "1 fixed, 0 failed" in captured.out
+
+
+def test_fix_yes_flag_skips_prompt(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr("janus_sec.cli.append_entry", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "--yes"])
+    # deliberately NOT patching input() - if the code tries to call it,
+    # this test will hang/error, proving --yes actually skips the prompt
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "1 fixed, 0 failed" in captured.out
+
+
+def test_fix_reports_failure_correctly(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, False, "644", None, "permission denied"),
+    )
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "--yes"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1  # nonzero because a fix failed
+    assert "0 fixed, 1 failed" in captured.out
+    assert "permission denied" in captured.out
+
+
+def test_fix_no_fixable_findings(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=[], files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "No fixable findings." in captured.out
+
+
+def test_fix_specific_path_not_found(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "/some/other/path"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "No fixable finding for /some/other/path" in captured.out

@@ -12,7 +12,8 @@ import sys
 
 from janus_sec.models import RiskLevel
 from janus_sec.scanner import ScanResult, scan
-
+from janus_sec.audit import append_entry
+from janus_sec.fix import apply_fix_for_finding
 
 _RISK_ORDER = {RiskLevel.HIGH: 0, RiskLevel.MEDIUM: 1, RiskLevel.LOW: 2, RiskLevel.INFO: 3}
 
@@ -61,7 +62,62 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     return 0
 
+def _print_planned_fixes(findings: list) -> None:
+    print("The following fixes would be applied:\n")
+    for f in findings:
+        print(f"  {f.path}")
+        print(f"    {f.current_mode_octal} -> {f.suggested_fix_octal}  ({f.check_type.value})")
+    print()
 
+
+def _cmd_fix(args: argparse.Namespace) -> int:
+    result = scan()
+
+    fixable = [f for f in result.findings if f.suggested_fix_octal is not None]
+
+    if args.path is not None:
+        fixable = [f for f in fixable if f.path == args.path]
+        if not fixable:
+            print(f"No fixable finding for {args.path}.")
+            print("(Either it's clean, wasn't scanned, or its issue has no automatic fix.)")
+            return 1
+
+    if not fixable:
+        print("No fixable findings.")
+        return 0
+
+    _print_planned_fixes(fixable)
+
+    if args.dry_run:
+        print(f"Dry run - no changes made. {len(fixable)} fix(es) would be applied.")
+        return 0
+
+    if not args.yes:
+        answer = input(f"Apply {len(fixable)} fix(es)? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Aborted - no changes made.")
+            return 1
+
+    succeeded = 0
+    failed = 0
+    for finding in fixable:
+        fix_result = apply_fix_for_finding(finding)
+        if fix_result.success:
+            succeeded += 1
+            append_entry(
+                path=fix_result.path,
+                before_mode_octal=fix_result.before_mode_octal,
+                after_mode_octal=fix_result.after_mode_octal,
+                applied_via="cli",
+            )
+            print(f"  Fixed: {fix_result.path} ({fix_result.before_mode_octal} -> {fix_result.after_mode_octal})")
+        else:
+            failed += 1
+            print(f"  Failed: {fix_result.path} - {fix_result.error}")
+
+    print(f"\n{succeeded} fixed, {failed} failed.")
+    return 1 if failed > 0 else 0
+    
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="janus-sec",
@@ -82,7 +138,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit with status 1 if any HIGH-risk finding exists (for use in CI pipelines).",
     )
     scan_parser.set_defaults(func=_cmd_scan)
-
+    fix_parser = subparsers.add_parser("fix", help="Fix findings from a scan.")
+    fix_parser.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="Fix only this specific path. If omitted, fixes all fixable findings.",
+    )
+    fix_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be fixed without making any changes.",
+    )
+    fix_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt (for scripted use).",
+    )
+    fix_parser.set_defaults(func=_cmd_fix)
     return parser
 
 
