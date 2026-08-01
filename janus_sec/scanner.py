@@ -15,6 +15,7 @@ from janus_sec.checks.group_ownership import AllowlistPattern, load_allowlist
 from janus_sec.checks.identity import username_for_uid
 from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
 from janus_sec.targets import TargetGroup, default_targets
+from janus_sec.config import Config, filter_ignored, load_config
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +95,8 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
     if targets is None:
         targets = default_targets()
 
-    allowlist = load_allowlist()
+    config = load_config()
+    allowlist = load_allowlist() + config.allowlist
     all_findings: list[Finding] = []
     files_scanned = 0
     files_missing = 0
@@ -123,7 +125,7 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
             all_findings.extend(
                 _scan_one_file(path, group.expected_root, allowlist)
             )
-
+    all_findings = filter_ignored(all_findings, config)
     return ScanResult(
         findings=all_findings,
         files_scanned=files_scanned,
