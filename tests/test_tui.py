@@ -5,6 +5,9 @@ from textual.widgets import DataTable, Static
 
 from janus_sec.tui import JanusSecApp
 from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
+from janus_sec.fix import FixResult
+
+from unittest.mock import patch
 
 
 def _finding(path: str, risk: RiskLevel = RiskLevel.HIGH) -> Finding:
@@ -89,3 +92,83 @@ async def test_empty_findings_does_not_crash() -> None:
     async with app.run_test() as pilot:
         table = app.query_one("#findings-table", DataTable)
         assert table.row_count == 0
+
+
+@pytest.mark.asyncio
+async def test_fix_action_opens_confirmation_dialog() -> None:
+    findings = [_finding("/x/id_rsa")]
+    app = JanusSecApp(findings)
+
+    async with app.run_test() as pilot:
+        await pilot.press("f")
+        await pilot.pause()
+
+        from janus_sec.tui import ConfirmFixScreen
+        assert isinstance(app.screen, ConfirmFixScreen)
+
+
+@pytest.mark.asyncio
+async def test_fix_confirmed_removes_finding_and_logs() -> None:
+    findings = [_finding("/x/id_rsa")]
+    app = JanusSecApp(findings)
+
+    with (
+        patch(
+            "janus_sec.fix.apply_fix_for_finding",
+            return_value=FixResult("/x/id_rsa", True, "644", "600", None),
+        ),
+        patch("janus_sec.audit.append_entry") as mock_append,
+    ):
+        async with app.run_test() as pilot:
+            await pilot.press("f")
+            await pilot.pause()
+            await pilot.click("#yes")
+            await pilot.pause()
+
+            table = app.query_one("#findings-table", DataTable)
+            assert table.row_count == 0
+            mock_append.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fix_cancelled_keeps_finding() -> None:
+    findings = [_finding("/x/id_rsa")]
+    app = JanusSecApp(findings)
+
+    with patch("janus_sec.fix.apply_fix_for_finding") as mock_apply:
+        async with app.run_test() as pilot:
+            await pilot.press("f")
+            await pilot.pause()
+            await pilot.click("#cancel")
+            await pilot.pause()
+
+            table = app.query_one("#findings-table", DataTable)
+            assert table.row_count == 1
+            mock_apply.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fix_with_no_suggested_fix_shows_warning_not_dialog() -> None:
+    finding = _finding("/x/known_hosts")
+    # Simulate a finding with no automatic fix, e.g. ownership_mismatch
+    object.__setattr__(finding, "suggested_fix_octal", None)
+    app = JanusSecApp([finding])
+
+    async with app.run_test() as pilot:
+        await pilot.press("f")
+        await pilot.pause()
+
+        from janus_sec.tui import ConfirmFixScreen
+        assert not isinstance(app.screen, ConfirmFixScreen)
+
+
+@pytest.mark.asyncio
+async def test_fix_on_empty_findings_does_not_crash() -> None:
+    app = JanusSecApp([])
+
+    async with app.run_test() as pilot:
+        await pilot.press("f")
+        await pilot.pause()
+        # Should simply do nothing - no crash, no dialog
+        from janus_sec.tui import ConfirmFixScreen
+        assert not isinstance(app.screen, ConfirmFixScreen)
