@@ -62,6 +62,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     return 0
 
+def _cmd_tui(args: argparse.Namespace) -> int:
+    from janus_sec.tui import run_app
+    run_app()
+    return 0
+
 def _print_planned_fixes(findings: list) -> None:
     print("The following fixes would be applied:\n")
     for f in findings:
@@ -156,6 +161,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the confirmation prompt (for scripted use).",
     )
     fix_parser.set_defaults(func=_cmd_fix)
+    tui_parser = subparsers.add_parser("tui", help="Launch the interactive TUI.")
+    tui_parser.set_defaults(func=_cmd_tui)
     return parser
 
 
