@@ -254,3 +254,15 @@ def test_fix_specific_path_not_found(monkeypatch, capsys) -> None:
 
     assert exit_code == 1
     assert "No fixable finding for /some/other/path" in captured.out
+
+def test_bare_command_defaults_to_scan(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=[], files_scanned=0, files_missing=12)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec"])  # no subcommand at all
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Scanned 0 file(s)" in captured.out

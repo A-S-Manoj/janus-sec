@@ -168,7 +168,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
+
+    # No subcommand given at all (bare `janus-sec`) - default to `scan`,
+    # since scanning is read-only and the obvious default action for a
+    # tool whose whole purpose is "check my files."
+    argv = sys.argv[1:]
+    if not argv:
+        argv = ["scan"]
+
+    args = parser.parse_args(argv)
     return args.func(args)
 
 
