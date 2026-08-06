@@ -26,9 +26,8 @@ class ScanResult:
 
 
 def _detect_filesystem_type(path: Path) -> FilesystemType:
-    # Placeholder for now - real network/DrvFs detection comes later as its
-    # own module. Everything is treated as local until then.
-    return FilesystemType.LOCAL
+    from janus_sec.platform_detect import detect_filesystem_type
+    return detect_filesystem_type(path)
 
 
 def _uninspectable_finding(
