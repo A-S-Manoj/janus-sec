@@ -1,5 +1,7 @@
 # janus-sec
 
+![Tests](https://github.com/A-S-Manoj/janus-sec/actions/workflows/tests.yml/badge.svg)
+
 **A terminal-first credential exposure auditor.**
 
 Your SSH keys, AWS credentials, and kube config are only as safe as their file
