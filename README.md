@@ -84,7 +84,11 @@ skipped, not errors — most people won't have all of these.
 
 ## Install
 
-Not yet published to PyPI — install from source for now:
+```bash
+pip install janus-sec
+```
+
+Or from source, for development:
 
 ```bash
 git clone https://github.com/A-S-Manoj/janus-sec.git
