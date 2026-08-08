@@ -9,17 +9,41 @@ description = "A terminal-first credential exposure auditor"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [
+    { name = "A Sivasubramanian Manoj" }
+]
+keywords = ["security", "cli", "permissions", "ssh", "credentials", "tui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
 dependencies = [
     "textual>=0.58",
     "tomli>=2.0; python_version < '3.11'",
     "tomli-w>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/A-S-Manoj/janus-sec"
+Repository = "https://github.com/A-S-Manoj/janus-sec"
+Issues = "https://github.com/A-S-Manoj/janus-sec/issues"
+
 [project.scripts]
 janus-sec = "janus_sec.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["janus_sec"]
+
 [tool.hatch.build.targets.wheel.force-include]
 "janus_sec/checks/allowlist.toml" = "janus_sec/checks/allowlist.toml"
 
