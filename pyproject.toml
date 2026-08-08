@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "janus-sec"
-version = "0.1.0"
-description = "A terminal-first credential exposure auditor"
+version = "0.1.1"
+description = "Scan and fix unsafe permissions on SSH keys, AWS credentials, and other credential files"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
