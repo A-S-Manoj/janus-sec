@@ -83,6 +83,7 @@ skipped, not errors — most people won't have all of these.
   `~/.local/state/janus-sec/audit.log`.
 
 Found a security issue? See [SECURITY.md](SECURITY.md) for how to report it.
+
 ## Install
 
 ```bash
