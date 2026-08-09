@@ -6,6 +6,7 @@ individual checks together into one final list of findings.
 
 from __future__ import annotations
 
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -19,10 +20,20 @@ from janus_sec.config import Config, filter_ignored, load_config
 
 
 @dataclass(frozen=True, slots=True)
+class TargetStatus:
+    group_name: str
+    path: str
+    exists: bool
+    mode_octal: str | None = None
+    status: str = "ok"  # "ok" | "missing" | "issue" | "uninspectable"
+
+
+@dataclass(frozen=True, slots=True)
 class ScanResult:
     findings: list[Finding]
     files_scanned: int
     files_missing: int
+    targets_status: list[TargetStatus] = field(default_factory=list)
 
 
 def _detect_filesystem_type(path: Path) -> FilesystemType:
@@ -97,6 +108,7 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
     config = load_config()
     allowlist = load_allowlist() + config.allowlist
     all_findings: list[Finding] = []
+    targets_status: list[TargetStatus] = []
     files_scanned = 0
     files_missing = 0
 
@@ -108,9 +120,17 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
             # would report False for a broken symlink - which is a real
             # finding we want to surface, not silently skip.
             try:
-                path.lstat()
+                st = path.lstat()
             except FileNotFoundError:
                 files_missing += 1
+                targets_status.append(
+                    TargetStatus(
+                        group_name=group.name,
+                        path=str(path),
+                        exists=False,
+                        status="missing",
+                    )
+                )
                 continue
             except PermissionError:
                 files_scanned += 1
@@ -118,15 +138,36 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
                 all_findings.append(
                     _uninspectable_finding(path, "permission denied", filesystem_type)
                 )
+                targets_status.append(
+                    TargetStatus(
+                        group_name=group.name,
+                        path=str(path),
+                        exists=True,
+                        status="uninspectable",
+                    )
+                )
                 continue
 
             files_scanned += 1
-            all_findings.extend(
-                _scan_one_file(path, group.expected_root, allowlist)
+            file_findings = _scan_one_file(path, group.expected_root, allowlist)
+            filtered_findings = filter_ignored(file_findings, config)
+            all_findings.extend(filtered_findings)
+
+            mode_octal = oct(stat.S_IMODE(st.st_mode))[2:].zfill(3)
+            status_str = "issue" if filtered_findings else "ok"
+            targets_status.append(
+                TargetStatus(
+                    group_name=group.name,
+                    path=str(path),
+                    exists=True,
+                    mode_octal=mode_octal,
+                    status=status_str,
+                )
             )
-    all_findings = filter_ignored(all_findings, config)
+
     return ScanResult(
         findings=all_findings,
         files_scanned=files_scanned,
         files_missing=files_missing,
+        targets_status=targets_status,
     )

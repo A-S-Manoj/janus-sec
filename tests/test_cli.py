@@ -266,3 +266,51 @@ def test_bare_command_defaults_to_scan(monkeypatch, capsys) -> None:
 
     assert exit_code == 0
     assert "Scanned 0 file(s)" in captured.out
+
+
+def test_verbose_flag_human_output(monkeypatch, capsys) -> None:
+    import sys
+    from janus_sec.scanner import TargetStatus
+    fake_result = ScanResult(
+        findings=[],
+        files_scanned=1,
+        files_missing=1,
+        targets_status=[
+            TargetStatus(group_name="ssh", path="/home/ezio/.ssh/config", exists=True, mode_octal="600", status="ok"),
+            TargetStatus(group_name="ssh", path="/home/ezio/.ssh/id_rsa", exists=False, status="missing"),
+        ],
+    )
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "-v"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Target Statuses:" in captured.out
+    assert "[ssh]" in captured.out
+    assert "[OK]" in captured.out
+    assert "[MISSING]" in captured.out
+
+
+def test_verbose_flag_json_output(monkeypatch, capsys) -> None:
+    import sys
+    from janus_sec.scanner import TargetStatus
+    fake_result = ScanResult(
+        findings=[],
+        files_scanned=1,
+        files_missing=1,
+        targets_status=[
+            TargetStatus(group_name="ssh", path="/home/ezio/.ssh/config", exists=True, mode_octal="600", status="ok"),
+        ],
+    )
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "scan", "--format", "json", "--verbose"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    payload = json.loads(captured.out)
+    assert "targets_status" in payload
+    assert payload["targets_status"][0]["group"] == "ssh"
+    assert payload["targets_status"][0]["status"] == "ok"
