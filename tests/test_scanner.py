@@ -117,3 +117,20 @@ def test_real_default_targets_do_not_crash() -> None:
     # real machine with real (mostly absent) targets.
     result = scan()
     assert result.files_scanned + result.files_missing > 0
+
+
+def test_symlink_target_mode_used_in_target_status(tmp_path: Path) -> None:
+    target_file = tmp_path / "real_file"
+    target_file.write_text("content")
+    os.chmod(target_file, 0o600)
+
+    symlink_file = tmp_path / "symlinked_config"
+    symlink_file.symlink_to(target_file)
+
+    targets = [
+        TargetGroup(name="test", expected_root=tmp_path, files=("symlinked_config",))
+    ]
+
+    result = scan(targets)
+    assert len(result.targets_status) == 1
+    assert result.targets_status[0].mode_octal == "600"

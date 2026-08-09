@@ -67,18 +67,18 @@ def _scan_one_file(
     path: Path,
     expected_root: Path,
     allowlist: list[AllowlistPattern],
-) -> list[Finding]:
+) -> tuple[list[Finding], str | None, str]:
     filesystem_type = _detect_filesystem_type(path)
 
     try:
         ctx = build_context(path)
     except PermissionError:
-        return [_uninspectable_finding(path, "permission denied", filesystem_type)]
+        return [_uninspectable_finding(path, "permission denied", filesystem_type)], None, "uninspectable"
     except FileNotFoundError:
-        return [_uninspectable_finding(path, "vanished during scan", filesystem_type)]
+        return [_uninspectable_finding(path, "vanished during scan", filesystem_type)], None, "uninspectable"
 
     if ctx.resolve_error is not None:
-        return [_uninspectable_finding(path, ctx.resolve_error, filesystem_type)]
+        return [_uninspectable_finding(path, ctx.resolve_error, filesystem_type)], None, "uninspectable"
 
     findings: list[Finding] = []
 
@@ -98,7 +98,13 @@ def _scan_one_file(
     if sym_finding is not None:
         findings.append(sym_finding)
 
-    return findings
+    mode_octal = (
+        oct(stat.S_IMODE(ctx.resolved_stat.st_mode))[2:].zfill(3)
+        if ctx.resolved_stat is not None
+        else None
+    )
+
+    return findings, mode_octal, "ok"
 
 
 def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
@@ -120,7 +126,7 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
             # would report False for a broken symlink - which is a real
             # finding we want to surface, not silently skip.
             try:
-                st = path.lstat()
+                path.lstat()
             except FileNotFoundError:
                 files_missing += 1
                 targets_status.append(
@@ -149,12 +155,13 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
                 continue
 
             files_scanned += 1
-            file_findings = _scan_one_file(path, group.expected_root, allowlist)
+            file_findings, mode_octal, file_status = _scan_one_file(
+                path, group.expected_root, allowlist
+            )
             filtered_findings = filter_ignored(file_findings, config)
             all_findings.extend(filtered_findings)
 
-            mode_octal = oct(stat.S_IMODE(st.st_mode))[2:].zfill(3)
-            status_str = "issue" if filtered_findings else "ok"
+            status_str = "issue" if filtered_findings else file_status
             targets_status.append(
                 TargetStatus(
                     group_name=group.name,
