@@ -53,7 +53,5 @@ false negatives), include the file's permissions (`ls -la`).
 
 ## Reporting security issues
 
-If you find an issue that could let janus-sec be tricked into an unsafe
-action — bypassing a confirmation, applying an incorrect fix, or anything
-touching the safety properties above — please open an issue describing
-the concern rather than submitting a pull request with the fix attached.
+See [SECURITY.md](SECURITY.md) for how to report a security issue
+privately, rather than opening a public issue or pull request.
