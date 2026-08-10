@@ -154,11 +154,37 @@ def _cmd_fix(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="janus-sec",
-        description="Scan credential files for unsafe permissions and ownership.",
+        description=(
+            "Scan credential files (SSH keys, AWS credentials, kube config, "
+            "and more) for unsafe permissions and ownership, and fix them "
+            "safely.\n\n"
+            "Makes no network calls, never reads file contents, and never "
+            "elevates privileges. Every fix requires confirmation unless "
+            "--yes is passed."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  janus-sec                  Scan default credential locations\n"
+            "  janus-sec scan -v          Scan with per-target detail\n"
+            "  janus-sec scan --ci        Scan, exit 1 on any HIGH finding\n"
+            "  janus-sec fix --dry-run    Preview fixes with no changes\n"
+            "  janus-sec tui              Launch the interactive UI\n\n"
+            "Run 'janus-sec <command> --help' for options specific to each "
+            "command.\n\n"
+            "Full documentation: https://github.com/A-S-Manoj/janus-sec"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    scan_parser = subparsers.add_parser("scan", help="Scan default credential file locations.")
+    scan_parser = subparsers.add_parser(
+        "scan",
+        help="Scan default credential file locations.",
+        description=(
+            "Scan default credential file locations for unsafe permissions "
+            "and ownership. Read-only - makes no changes to any file."
+        ),
+    )
     scan_parser.add_argument(
         "--format",
         choices=["human", "json"],
@@ -177,7 +203,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit with status 1 if any HIGH-risk finding exists (for use in CI pipelines).",
     )
     scan_parser.set_defaults(func=_cmd_scan)
-    fix_parser = subparsers.add_parser("fix", help="Fix findings from a scan.")
+
+    fix_parser = subparsers.add_parser(
+        "fix",
+        help="Fix findings from a scan.",
+        description=(
+            "Apply the suggested permission fix for one or all fixable "
+            "findings. Requires confirmation unless --yes is passed. "
+            "Ownership and symlink issues have no automatic fix and are "
+            "skipped."
+        ),
+    )
     fix_parser.add_argument(
         "path",
         nargs="?",
@@ -195,8 +231,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the confirmation prompt (for scripted use).",
     )
     fix_parser.set_defaults(func=_cmd_fix)
-    tui_parser = subparsers.add_parser("tui", help="Launch the interactive TUI.")
+
+    tui_parser = subparsers.add_parser(
+        "tui",
+        help="Launch the interactive TUI.",
+        description=(
+            "Launch the interactive terminal UI: browse findings, view "
+            "details, and apply fixes with confirmation."
+        ),
+    )
     tui_parser.set_defaults(func=_cmd_tui)
+
     return parser
 
 
