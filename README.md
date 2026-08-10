@@ -125,10 +125,10 @@ janus-sec fix
 janus-sec fix ~/.ssh/id_rsa
 
 # Preview fixes without changing anything
-janus-sec fix --dry-run
+janus-sec fix --dry-run   # or: janus-sec fix -d
 
 # Skip the confirmation prompt (for scripts)
-janus-sec fix --yes
+janus-sec fix --yes       # or: janus-sec fix -y
 ```
 
 ## Configuration
