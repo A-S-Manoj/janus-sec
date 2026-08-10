@@ -106,6 +106,9 @@ pip install -e .
 janus-sec
 janus-sec scan
 
+# Detailed per-target status (every scanned location, including missing ones)
+janus-sec scan -v
+
 # Interactive TUI
 janus-sec tui
 
