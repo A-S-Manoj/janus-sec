@@ -1,0 +1,58 @@
+name: Bug report
+description: Report incorrect detection, a crash, or unexpected behavior
+labels: ["bug"]
+body:
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Fedora 44, Ubuntu 24.04, macOS 15"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "python3 --version"
+    validations:
+      required: true
+
+  - type: input
+    id: janus-sec-version
+    attributes:
+      label: janus-sec version
+      placeholder: "janus-sec --version, or pip show janus-sec"
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command run
+      placeholder: "e.g. janus-sec scan -v"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: File permissions (for detection issues)
+      description: If this is a false positive/negative, run `ls -la` on the file in question
+      placeholder: "ls -la ~/.ssh/id_rsa"
+    validations:
+      required: false
