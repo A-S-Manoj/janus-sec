@@ -6,6 +6,7 @@ individual checks together into one final list of findings.
 
 from __future__ import annotations
 
+import stat
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -19,10 +20,20 @@ from janus_sec.config import Config, filter_ignored, load_config
 
 
 @dataclass(frozen=True, slots=True)
+class TargetStatus:
+    group_name: str
+    path: str
+    exists: bool
+    mode_octal: str | None = None
+    status: str = "ok"  # "ok" | "missing" | "issue" | "uninspectable"
+
+
+@dataclass(frozen=True, slots=True)
 class ScanResult:
     findings: list[Finding]
     files_scanned: int
     files_missing: int
+    targets_status: list[TargetStatus] = field(default_factory=list)
 
 
 def _detect_filesystem_type(path: Path) -> FilesystemType:
@@ -56,18 +67,18 @@ def _scan_one_file(
     path: Path,
     expected_root: Path,
     allowlist: list[AllowlistPattern],
-) -> list[Finding]:
+) -> tuple[list[Finding], str | None, str]:
     filesystem_type = _detect_filesystem_type(path)
 
     try:
         ctx = build_context(path)
     except PermissionError:
-        return [_uninspectable_finding(path, "permission denied", filesystem_type)]
+        return [_uninspectable_finding(path, "permission denied", filesystem_type)], None, "uninspectable"
     except FileNotFoundError:
-        return [_uninspectable_finding(path, "vanished during scan", filesystem_type)]
+        return [_uninspectable_finding(path, "vanished during scan", filesystem_type)], None, "uninspectable"
 
     if ctx.resolve_error is not None:
-        return [_uninspectable_finding(path, ctx.resolve_error, filesystem_type)]
+        return [_uninspectable_finding(path, ctx.resolve_error, filesystem_type)], None, "uninspectable"
 
     findings: list[Finding] = []
 
@@ -87,7 +98,13 @@ def _scan_one_file(
     if sym_finding is not None:
         findings.append(sym_finding)
 
-    return findings
+    mode_octal = (
+        oct(stat.S_IMODE(ctx.resolved_stat.st_mode))[2:].zfill(3)
+        if ctx.resolved_stat is not None
+        else None
+    )
+
+    return findings, mode_octal, "ok"
 
 
 def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
@@ -97,6 +114,7 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
     config = load_config()
     allowlist = load_allowlist() + config.allowlist
     all_findings: list[Finding] = []
+    targets_status: list[TargetStatus] = []
     files_scanned = 0
     files_missing = 0
 
@@ -111,6 +129,14 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
                 path.lstat()
             except FileNotFoundError:
                 files_missing += 1
+                targets_status.append(
+                    TargetStatus(
+                        group_name=group.name,
+                        path=str(path),
+                        exists=False,
+                        status="missing",
+                    )
+                )
                 continue
             except PermissionError:
                 files_scanned += 1
@@ -118,15 +144,37 @@ def scan(targets: list[TargetGroup] | None = None) -> ScanResult:
                 all_findings.append(
                     _uninspectable_finding(path, "permission denied", filesystem_type)
                 )
+                targets_status.append(
+                    TargetStatus(
+                        group_name=group.name,
+                        path=str(path),
+                        exists=True,
+                        status="uninspectable",
+                    )
+                )
                 continue
 
             files_scanned += 1
-            all_findings.extend(
-                _scan_one_file(path, group.expected_root, allowlist)
+            file_findings, mode_octal, file_status = _scan_one_file(
+                path, group.expected_root, allowlist
             )
-    all_findings = filter_ignored(all_findings, config)
+            filtered_findings = filter_ignored(file_findings, config)
+            all_findings.extend(filtered_findings)
+
+            status_str = "issue" if filtered_findings else file_status
+            targets_status.append(
+                TargetStatus(
+                    group_name=group.name,
+                    path=str(path),
+                    exists=True,
+                    mode_octal=mode_octal,
+                    status=status_str,
+                )
+            )
+
     return ScanResult(
         findings=all_findings,
         files_scanned=files_scanned,
         files_missing=files_missing,
+        targets_status=targets_status,
     )

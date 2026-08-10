@@ -18,7 +18,24 @@ from janus_sec.fix import apply_fix_for_finding
 _RISK_ORDER = {RiskLevel.HIGH: 0, RiskLevel.MEDIUM: 1, RiskLevel.LOW: 2, RiskLevel.INFO: 3}
 
 
-def _print_human(result: ScanResult) -> None:
+def _print_human(result: ScanResult, verbose: bool = False) -> None:
+    if verbose and result.targets_status:
+        print("Target Statuses:")
+        current_group = None
+        for t in result.targets_status:
+            if t.group_name != current_group:
+                current_group = t.group_name
+                print(f"\n  [{current_group}]")
+            if not t.exists:
+                print(f"    [MISSING]       {t.path}")
+            elif t.status == "issue":
+                print(f"    [ISSUE]         {t.path} (mode {t.mode_octal})")
+            elif t.status == "uninspectable":
+                print(f"    [UNINSPECTABLE] {t.path}")
+            else:
+                print(f"    [OK]            {t.path} (mode {t.mode_octal})")
+        print()
+
     print(f"Scanned {result.files_scanned} file(s), {result.files_missing} not present.\n")
 
     if not result.findings:
@@ -39,12 +56,23 @@ def _print_human(result: ScanResult) -> None:
     print(f"{len(result.findings)} finding(s) total, {high_count} HIGH risk.")
 
 
-def _print_json(result: ScanResult) -> None:
+def _print_json(result: ScanResult, verbose: bool = False) -> None:
     payload = {
         "files_scanned": result.files_scanned,
         "files_missing": result.files_missing,
         "findings": [f.to_json_dict() for f in result.findings],
     }
+    if verbose:
+        payload["targets_status"] = [
+            {
+                "group": t.group_name,
+                "path": t.path,
+                "exists": t.exists,
+                "mode_octal": t.mode_octal,
+                "status": t.status,
+            }
+            for t in result.targets_status
+        ]
     print(json.dumps(payload, indent=2))
 
 
@@ -52,9 +80,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     result = scan()
 
     if args.format == "json":
-        _print_json(result)
+        _print_json(result, verbose=args.verbose)
     else:
-        _print_human(result)
+        _print_human(result, verbose=args.verbose)
 
     if args.ci:
         high_count = sum(1 for f in result.findings if f.risk_level == RiskLevel.HIGH)
@@ -136,6 +164,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["human", "json"],
         default="human",
         help="Output format (default: human).",
+    )
+    scan_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show detailed status of all checked target files.",
     )
     scan_parser.add_argument(
         "--ci",
