@@ -57,8 +57,6 @@ def test_resolved_paths_are_absolute() -> None:
             full_path = group.expected_root / filename
             assert full_path.is_absolute()
 
-
-
 def test_gcloud_group_exists() -> None:
     targets = default_targets()
     gcloud_group = next(t for t in targets if t.name == "gcloud")
