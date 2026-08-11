@@ -63,4 +63,19 @@ def default_targets() -> list[TargetGroup]:
             expected_root=home / ".docker",
             files=("config.json",),
         ),
+        TargetGroup(
+            name="gcloud",
+            expected_root=home / ".config" / "gcloud",
+            files=("credentials.db", "access_tokens.db"),
+        ),
+        TargetGroup(
+            name="azure",
+            expected_root=home / ".azure",
+            files=("accessTokens.json", "msal_token_cache.json"),
+        ),
+        TargetGroup(
+            name="gh",
+            expected_root=home / ".config" / "gh",
+            files=("hosts.yml",),
+        ),
     ]
