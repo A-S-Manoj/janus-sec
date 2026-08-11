@@ -212,6 +212,54 @@ def test_fix_yes_flag_skips_prompt(monkeypatch, capsys) -> None:
     assert "1 fixed, 0 failed" in captured.out
 
 
+def test_fix_short_flag_aliases_parse() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["fix", "-d", "-y"])
+
+    assert args.dry_run is True
+    assert args.yes is True
+
+
+def test_fix_short_dry_run_flag_makes_no_changes(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+
+    apply_calls = []
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: apply_calls.append(f) or FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "-d"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Dry run" in captured.out
+    assert apply_calls == []  # apply_fix_for_finding must NOT have been called
+
+
+def test_fix_short_yes_flag_skips_prompt(monkeypatch, capsys) -> None:
+    import sys
+    fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr("janus_sec.cli.append_entry", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "-y"])
+    # deliberately NOT patching input() - if the code tries to call it,
+    # this test will hang/error, proving -y actually skips the prompt
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "1 fixed, 0 failed" in captured.out
+
+
 def test_fix_reports_failure_correctly(monkeypatch, capsys) -> None:
     import sys
     fake_result = ScanResult(findings=_fake_findings_for_fix(), files_scanned=1, files_missing=0)

@@ -221,11 +221,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fix only this specific path. If omitted, fixes all fixable findings.",
     )
     fix_parser.add_argument(
+        "-d",
         "--dry-run",
         action="store_true",
         help="Show what would be fixed without making any changes.",
     )
     fix_parser.add_argument(
+        "-y",
         "--yes",
         action="store_true",
         help="Skip the confirmation prompt (for scripted use).",
