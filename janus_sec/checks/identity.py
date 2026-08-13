@@ -36,3 +36,13 @@ def current_username() -> str:
 
 def current_primary_gid() -> int:
     return os.getgid()
+
+
+def current_group_ids() -> set[int]:
+    groups = {current_primary_gid()}
+    if hasattr(os, "getgroups"):
+        try:
+            groups.update(os.getgroups())
+        except OSError:
+            pass
+    return groups

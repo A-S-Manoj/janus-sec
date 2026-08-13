@@ -18,7 +18,7 @@ from importlib import resources
 
 from janus_sec.checks.context import FileContext
 from janus_sec.checks.identity import (
-    current_primary_gid,
+    current_group_ids,
     groupname_for_gid,
     username_for_uid,
 )
@@ -77,9 +77,8 @@ def check(
         return None  # group can't even read it - nothing to flag
 
     file_gid = ctx.resolved_stat.st_gid
-    my_gid = current_primary_gid()
-    if file_gid == my_gid:
-        return None  # it's your own primary group - not a concern
+    if file_gid in current_group_ids():
+        return None  # it's one of your own groups - not a concern
 
     group_name = groupname_for_gid(file_gid)
     matched = _matches_allowlist(group_name, allowlist or [])
@@ -90,8 +89,8 @@ def check(
     risk_level = RiskLevel.MEDIUM
     confidence = Confidence.HIGH
     reason = (
-        f"This file is readable by group '{group_name}', which is not your "
-        "primary group. Other accounts in that group can read this file."
+        f"This file is readable by group '{group_name}', which is not one of "
+        "your groups. Other accounts in that group can read this file."
     )
     if matched is not None and matched.action == "downgrade_to_low":
         risk_level = RiskLevel.LOW
