@@ -57,12 +57,15 @@ def test_resolved_paths_are_absolute() -> None:
             full_path = group.expected_root / filename
             assert full_path.is_absolute()
 
+
+
 def test_gcloud_group_exists() -> None:
     targets = default_targets()
     gcloud_group = next(t for t in targets if t.name == "gcloud")
 
     assert gcloud_group.expected_root == Path.home() / ".config" / "gcloud"
-    assert len(gcloud_group.files) > 0
+    assert "credentials.db" in gcloud_group.files
+    assert "access_tokens.db" in gcloud_group.files
 
 
 def test_azure_group_exists() -> None:
@@ -70,7 +73,8 @@ def test_azure_group_exists() -> None:
     azure_group = next(t for t in targets if t.name == "azure")
 
     assert azure_group.expected_root == Path.home() / ".azure"
-    assert len(azure_group.files) > 0
+    assert "accessTokens.json" in azure_group.files
+    assert "msal_token_cache.json" in azure_group.files
 
 
 def test_gh_group_exists() -> None:
