@@ -102,11 +102,23 @@ def _print_planned_fixes(findings: list) -> None:
         print(f"    {f.current_mode_octal} -> {f.suggested_fix_octal}  ({f.check_type.value})")
     print()
 
+def _print_unfixable_summary(findings: list) -> None:
+    print(f"{len(findings)} finding(s) require manual action (no automatic fix available):")
+    for f in findings:
+        print(f"  {f.path}       {f.check_type.value}")
+    print()
 
 def _cmd_fix(args: argparse.Namespace) -> int:
     result = scan()
 
     fixable = [f for f in result.findings if f.suggested_fix_octal is not None]
+    # Only surfaced for whole-scan runs - if the user targeted one specific
+    # path, findings on unrelated files aren't relevant to what they asked.
+    unfixable = (
+        [f for f in result.findings if f.suggested_fix_octal is None]
+        if args.path is None
+        else []
+    )
 
     if args.path is not None:
         fixable = [f for f in fixable if f.path == args.path]
@@ -117,12 +129,18 @@ def _cmd_fix(args: argparse.Namespace) -> int:
 
     if not fixable:
         print("No fixable findings.")
+        if unfixable:
+            print()
+            _print_unfixable_summary(unfixable)
         return 0
 
     _print_planned_fixes(fixable)
 
     if args.dry_run:
         print(f"Dry run - no changes made. {len(fixable)} fix(es) would be applied.")
+        if unfixable:
+            print()
+            _print_unfixable_summary(unfixable)
         return 0
 
     if not args.yes:
@@ -149,6 +167,9 @@ def _cmd_fix(args: argparse.Namespace) -> int:
             print(f"  Failed: {fix_result.path} - {fix_result.error}")
 
     print(f"\n{succeeded} fixed, {failed} failed.")
+    if unfixable:
+        print()
+        _print_unfixable_summary(unfixable)
     return 1 if failed > 0 else 0
     
 def build_parser() -> argparse.ArgumentParser:

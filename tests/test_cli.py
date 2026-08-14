@@ -131,6 +131,22 @@ def test_ci_flag_exits_zero_with_no_findings_at_all(monkeypatch) -> None:
 def _fake_findings_for_fix() -> list:
     return [_fake_finding()]
 
+def _fake_unfixable_finding() -> Finding:
+    return Finding(
+        path="/home/ezio/.ssh/authorized_keys",
+        current_mode_octal="644",
+        current_mode_human="-rw-r--r--",
+        risk_level=RiskLevel.HIGH,
+        check_type=CheckType.OWNERSHIP_MISMATCH,
+        reason="Owned by another account.",
+        owner="someone_else",
+        expected_owner="ezio",
+        is_symlink=False,
+        filesystem_type=FilesystemType.LOCAL,
+        confidence=Confidence.HIGH,
+        suggested_fix_octal=None,
+    )
+
 
 def test_fix_dry_run_makes_no_changes(monkeypatch, capsys) -> None:
     import sys
@@ -302,6 +318,62 @@ def test_fix_specific_path_not_found(monkeypatch, capsys) -> None:
 
     assert exit_code == 1
     assert "No fixable finding for /some/other/path" in captured.out
+
+def test_fix_summarizes_unfixable_findings_on_apply(monkeypatch, capsys) -> None:
+    import sys
+    findings = _fake_findings_for_fix() + [_fake_unfixable_finding()]
+    fake_result = ScanResult(findings=findings, files_scanned=2, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr("janus_sec.cli.append_entry", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "--yes"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "1 fixed, 0 failed" in captured.out
+    assert "1 finding(s) require manual action (no automatic fix available):" in captured.out
+    assert "/home/ezio/.ssh/authorized_keys" in captured.out
+    assert "ownership_mismatch" in captured.out
+
+
+def test_fix_summarizes_unfixable_findings_on_dry_run(monkeypatch, capsys) -> None:
+    import sys
+    findings = _fake_findings_for_fix() + [_fake_unfixable_finding()]
+    fake_result = ScanResult(findings=findings, files_scanned=2, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "--dry-run"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Dry run" in captured.out
+    assert "1 finding(s) require manual action (no automatic fix available):" in captured.out
+    assert "/home/ezio/.ssh/authorized_keys" in captured.out
+
+
+def test_fix_specific_path_does_not_show_unrelated_unfixable_summary(monkeypatch, capsys) -> None:
+    import sys
+    findings = _fake_findings_for_fix() + [_fake_unfixable_finding()]
+    fake_result = ScanResult(findings=findings, files_scanned=2, files_missing=0)
+    monkeypatch.setattr("janus_sec.cli.scan", lambda: fake_result)
+    monkeypatch.setattr(
+        "janus_sec.cli.apply_fix_for_finding",
+        lambda f: FixResult(f.path, True, "644", "600", None),
+    )
+    monkeypatch.setattr("janus_sec.cli.append_entry", lambda **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["janus-sec", "fix", "/home/ezio/.ssh/id_rsa", "--yes"])
+
+    exit_code = main()
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "require manual action" not in captured.out
 
 def test_bare_command_defaults_to_scan(monkeypatch, capsys) -> None:
     import sys
