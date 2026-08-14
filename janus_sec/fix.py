@@ -54,6 +54,17 @@ def apply_fix(path: Path, target_mode: int) -> FixResult:
     before_octal = _mode_octal(current_stat.st_mode)
 
     try:
+        # Last-instant re-check: os.chmod follows symlinks, so if the path
+        # has been swapped for a symlink since the lstat above, the chmod
+        # would silently change whatever the symlink points at instead.
+        # This check must sit immediately before the chmod call - doing it
+        # any earlier just moves the race window rather than closing it.
+        if stat.S_ISLNK(os.lstat(path).st_mode):
+            return FixResult(
+                path=str(path), success=False,
+                before_mode_octal=before_octal, after_mode_octal=None,
+                error="path became a symlink - refusing to modify its target",
+            )
         os.chmod(path, target_mode)
     except PermissionError:
         return FixResult(

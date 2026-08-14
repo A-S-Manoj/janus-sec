@@ -70,6 +70,46 @@ def test_apply_fix_on_locked_directory_file(tmp_path: Path) -> None:
     assert result.error is not None
 
 
+def test_apply_fix_aborts_if_file_becomes_symlink_before_chmod(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    # Simulates the TOCTOU race: the file passes the initial re-stat as a
+    # regular file, then is swapped for a symlink before the chmod runs.
+    # The last-instant symlink re-check must catch this and abort rather
+    # than chmod'ing whatever the symlink points at.
+    victim = tmp_path / "victim"
+    victim.write_text("x")
+    os.chmod(victim, 0o644)
+
+    f = tmp_path / "id_rsa"
+    f.write_text("x")
+    os.chmod(f, 0o644)
+
+    real_lstat = os.lstat
+    swapped = False
+
+    def swapping_lstat(path, *args, **kwargs):
+        nonlocal swapped
+        result = real_lstat(path, *args, **kwargs)
+        if not swapped and Path(path) == f:
+            # Attacker swaps the file right after the first pre-check stat.
+            swapped = True
+            f.unlink()
+            f.symlink_to(victim)
+        return result
+
+    monkeypatch.setattr(os, "lstat", swapping_lstat)
+    result = apply_fix(f, 0o600)
+
+    assert result.success is False
+    assert result.error == "path became a symlink - refusing to modify its target"
+    assert result.before_mode_octal == "644"
+    assert result.after_mode_octal is None
+
+    # The symlink target must be untouched.
+    assert stat.S_IMODE(real_lstat(victim).st_mode) == 0o644
+
+
 def test_apply_fix_for_finding_with_fix(tmp_path: Path) -> None:
     f = tmp_path / "id_rsa"
     f.write_text("x")
