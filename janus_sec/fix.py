@@ -63,7 +63,7 @@ def apply_fix(path: Path, target_mode: int) -> FixResult:
             return FixResult(
                 path=str(path), success=False,
                 before_mode_octal=before_octal, after_mode_octal=None,
-                error="path became a symlink - refusing to modify its target",
+                error=f"{path} became a symlink - refusing to modify its target",
             )
         os.chmod(path, target_mode)
     except PermissionError:

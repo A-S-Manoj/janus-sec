@@ -102,7 +102,7 @@ def test_apply_fix_aborts_if_file_becomes_symlink_before_chmod(
     result = apply_fix(f, 0o600)
 
     assert result.success is False
-    assert result.error == "path became a symlink - refusing to modify its target"
+    assert result.error == f"{f} became a symlink - refusing to modify its target"
     assert result.before_mode_octal == "644"
     assert result.after_mode_octal is None
 
