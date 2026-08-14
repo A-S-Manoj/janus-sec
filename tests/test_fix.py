@@ -3,6 +3,7 @@
 import os
 import stat
 from pathlib import Path
+from unittest.mock import patch
 
 from janus_sec.fix import apply_fix, apply_fix_for_finding
 from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
@@ -49,6 +50,37 @@ def test_apply_fix_missing_file(tmp_path: Path) -> None:
     assert result.success is False
     assert result.error == "file no longer exists"
     assert result.before_mode_octal is None
+
+
+def test_apply_fix_refuses_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target_secret"
+    target.write_text("target")
+    os.chmod(target, 0o644)
+
+    link = tmp_path / "symlink_secret"
+    os.symlink(target, link)
+
+    result = apply_fix(link, 0o600)
+
+    assert result.success is False
+    assert "file is a symlink" in result.error
+
+    # Ensure target file mode was NOT modified
+    actual_mode = stat.S_IMODE(os.lstat(target).st_mode)
+    assert oct(actual_mode)[2:].zfill(3) == "644"
+
+
+def test_apply_fix_toctou_symlink_race(tmp_path: Path) -> None:
+    f = tmp_path / "id_rsa"
+    f.write_text("x")
+    os.chmod(f, 0o644)
+
+    # Simulate path becoming a symlink immediately after pre-stat
+    with patch("os.path.islink", return_value=True):
+        result = apply_fix(f, 0o600)
+
+    assert result.success is False
+    assert "file is a symlink" in result.error
 
 
 def test_apply_fix_on_locked_directory_file(tmp_path: Path) -> None:

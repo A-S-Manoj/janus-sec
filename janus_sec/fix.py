@@ -51,9 +51,23 @@ def apply_fix(path: Path, target_mode: int) -> FixResult:
             error="permission denied reading current state",
         )
 
+    if stat.S_ISLNK(current_stat.st_mode):
+        return FixResult(
+            path=str(path), success=False,
+            before_mode_octal=None, after_mode_octal=None,
+            error="file is a symlink - refusing to chmod",
+        )
+
     before_octal = _mode_octal(current_stat.st_mode)
 
     try:
+        # Re-verify immediately before chmod to close TOCTOU symlink race
+        if os.path.islink(path):
+            return FixResult(
+                path=str(path), success=False,
+                before_mode_octal=before_octal, after_mode_octal=None,
+                error="file is a symlink - refusing to chmod",
+            )
         os.chmod(path, target_mode)
     except PermissionError:
         return FixResult(
