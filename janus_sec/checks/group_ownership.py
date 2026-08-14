@@ -1,7 +1,8 @@
 """Group-readable detection, with an allowlist for known-benign groups.
 
-A file readable by a group other than the user's own primary group means
-other accounts in that group can read it. This is lower severity than
+A file readable by a group the user doesn't belong to (checking both
+their primary group and any supplementary groups) means other accounts
+in that group can read it. This is lower severity than
 world-readable (it's a bounded set of accounts, not literally everyone),
 so it's classified MEDIUM rather than HIGH - unless the group matches a
 known-benign pattern (e.g. some platforms use unusual default groups that

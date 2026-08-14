@@ -26,8 +26,8 @@ Scanned 4 file(s), 8 not present.
 
 [MEDIUM] /home/user/.aws/credentials
     Issue:  group_readable (mode 640)
-    Why:    This file is readable by group 'docker', which is not your
-            primary group. Other accounts in that group can read this file.
+    Why:    This file is readable by group 'docker', which is not one of
+            your groups. Other accounts in that group can read this file.
     Fix:    chmod 600 /home/user/.aws/credentials
 
 2 finding(s) total, 1 HIGH risk.
@@ -61,7 +61,7 @@ Concretely, what a one-liner doesn't give you:
 |---|---|---|
 | World-readable / world-writable | HIGH | Yes |
 | Owned by a different user | HIGH | No — would require `sudo`, out of scope |
-| Group-readable (non-primary group) | MEDIUM | Yes |
+| Group-readable (by a group you're not in) | MEDIUM | Yes |
 | Symlink pointing outside its expected directory | MEDIUM | No — target choice is a judgment call |
 
 Scans by default: `~/.ssh/*`, `~/.aws/*`, `~/.kube/config`, `~/.npmrc`,
