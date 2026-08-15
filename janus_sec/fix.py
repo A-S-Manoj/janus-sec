@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from janus_sec.models import Finding
+from janus_sec.checks.identity import username_for_uid
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +29,7 @@ def _mode_octal(mode: int) -> str:
     return oct(stat.S_IMODE(mode))[2:].zfill(3)
 
 
-def apply_fix(path: Path, target_mode: int) -> FixResult:
+def apply_fix(path: Path, target_mode: int, expected_owner_name: str | None = None) -> FixResult:
     """Apply a chmod fix to one file, safely.
 
     Re-checks the file's current state immediately before fixing (not
@@ -65,6 +66,16 @@ def apply_fix(path: Path, target_mode: int) -> FixResult:
                 before_mode_octal=before_octal, after_mode_octal=None,
                 error=f"{path} became a symlink - refusing to modify its target",
             )
+
+        if expected_owner_name is not None:
+            current_owner = username_for_uid(os.lstat(path).st_uid)
+            if current_owner != expected_owner_name:
+                return FixResult(
+                    path=str(path), success=False,
+                    before_mode_octal=before_octal, after_mode_octal=None,
+                    error=f"ownership changed to '{current_owner}' - refusing to modify",
+                )
+
         os.chmod(path, target_mode)
     except PermissionError:
         return FixResult(
@@ -102,4 +113,4 @@ def apply_fix_for_finding(finding: Finding) -> FixResult:
         )
 
     target_mode = int(finding.suggested_fix_octal, 8)
-    return apply_fix(Path(finding.path), target_mode)
+    return apply_fix(Path(finding.path), target_mode, expected_owner_name=finding.owner)
