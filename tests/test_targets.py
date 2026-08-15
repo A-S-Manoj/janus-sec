@@ -81,3 +81,27 @@ def test_gh_group_exists() -> None:
 
     assert gh_group.expected_root == Path.home() / ".config" / "gh"
     assert "hosts.yml" in gh_group.files
+
+
+def test_pypirc_group_exists() -> None:
+    targets = default_targets()
+    pypirc_group = next(t for t in targets if t.name == "pypirc")
+
+    assert pypirc_group.expected_root == Path.home()
+    assert ".pypirc" in pypirc_group.files
+
+
+def test_netrc_group_exists() -> None:
+    targets = default_targets()
+    netrc_group = next(t for t in targets if t.name == "netrc")
+
+    assert netrc_group.expected_root == Path.home()
+    assert ".netrc" in netrc_group.files
+
+
+def test_vault_group_exists() -> None:
+    targets = default_targets()
+    vault_group = next(t for t in targets if t.name == "vault")
+
+    assert vault_group.expected_root == Path.home()
+    assert ".vault-token" in vault_group.files

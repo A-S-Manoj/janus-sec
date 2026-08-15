@@ -78,4 +78,19 @@ def default_targets() -> list[TargetGroup]:
             expected_root=home / ".config" / "gh",
             files=("hosts.yml",),
         ),
+        TargetGroup(
+            name="pypirc",
+            expected_root=home,
+            files=(".pypirc",),
+        ),
+        TargetGroup(
+            name="netrc",
+            expected_root=home,
+            files=(".netrc",),
+        ),
+        TargetGroup(
+            name="vault",
+            expected_root=home,
+            files=(".vault-token",),
+        ),
     ]
