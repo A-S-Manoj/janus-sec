@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import stat
 
+from janus_sec.checks._shared import build_finding
 from janus_sec.checks.context import FileContext
-from janus_sec.checks.identity import username_for_uid
-from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
+from janus_sec.models import CheckType, Finding, FilesystemType, RiskLevel
 
 _WORLD_READ = stat.S_IROTH
 _WORLD_WRITE = stat.S_IWOTH
@@ -23,9 +23,6 @@ def check(ctx: FileContext, filesystem_type: FilesystemType) -> Finding | None:
         return None  # uninspectable - the scanner reports this case separately
 
     mode = ctx.resolved_stat.st_mode
-    current_octal = oct(stat.S_IMODE(mode))[2:].zfill(3)
-    current_human = stat.filemode(mode)
-    owner_name = username_for_uid(ctx.resolved_stat.st_uid)
 
     # Credential files have no legitimate reason to be group- or
     # world-accessible, so the suggested fix always goes straight to
@@ -34,41 +31,29 @@ def check(ctx: FileContext, filesystem_type: FilesystemType) -> Finding | None:
     owner_only = oct(stat.S_IMODE(mode) & stat.S_IRWXU)[2:].zfill(3)
 
     if mode & _WORLD_WRITE:
-        return Finding(
-            path=str(ctx.path),
-            current_mode_octal=current_octal,
-            current_mode_human=current_human,
-            risk_level=RiskLevel.HIGH,
+        return build_finding(
+            ctx,
+            filesystem_type,
             check_type=CheckType.WORLD_WRITABLE,
+            risk_level=RiskLevel.HIGH,
             reason=(
                 "This file is writable by any local user on this machine, "
                 "meaning another account (or a compromised process running "
                 "as another user) could modify or corrupt it."
             ),
-            owner=owner_name,
-            expected_owner=owner_name,
-            is_symlink=ctx.is_symlink,
-            filesystem_type=filesystem_type,
-            confidence=Confidence.HIGH,
             suggested_fix_octal=owner_only,
         )
 
     if mode & _WORLD_READ:
-        return Finding(
-            path=str(ctx.path),
-            current_mode_octal=current_octal,
-            current_mode_human=current_human,
-            risk_level=RiskLevel.HIGH,
+        return build_finding(
+            ctx,
+            filesystem_type,
             check_type=CheckType.WORLD_READABLE,
+            risk_level=RiskLevel.HIGH,
             reason=(
                 "This file is readable by any local user on this machine. "
                 "Credential files should only be readable by their owner."
             ),
-            owner=owner_name,
-            expected_owner=owner_name,
-            is_symlink=ctx.is_symlink,
-            filesystem_type=filesystem_type,
-            confidence=Confidence.HIGH,
             suggested_fix_octal=owner_only,
         )
 

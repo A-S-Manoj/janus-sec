@@ -15,12 +15,11 @@ on its own once it exists.
 
 from __future__ import annotations
 
-import stat
 from pathlib import Path
 
+from janus_sec.checks._shared import build_finding
 from janus_sec.checks.context import FileContext
-from janus_sec.checks.identity import username_for_uid
-from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
+from janus_sec.models import CheckType, Finding, FilesystemType, RiskLevel
 
 
 def check(
@@ -47,25 +46,15 @@ def check(
     if not escapes:
         return None
 
-    mode = ctx.resolved_stat.st_mode
-    return Finding(
-        path=str(ctx.path),
-        current_mode_octal=oct(stat.S_IMODE(mode))[2:].zfill(3),
-        current_mode_human=stat.filemode(mode),
-        risk_level=RiskLevel.MEDIUM,
+    return build_finding(
+        ctx,
+        filesystem_type,
         check_type=CheckType.SYMLINK_ESCAPE,
+        risk_level=RiskLevel.MEDIUM,
         reason=(
             f"This is a symlink pointing to '{resolved_path}', outside the "
             f"expected directory ('{expected_root_resolved}'). This can "
             "redirect reads and writes to an unexpected location."
         ),
-        owner=username_for_uid(ctx.resolved_stat.st_uid),
-        expected_owner=username_for_uid(ctx.resolved_stat.st_uid),
-        is_symlink=True,
-        filesystem_type=filesystem_type,
-        confidence=Confidence.HIGH,
-        # No suggested fix - the problem is the symlink target, not the
-        # mode bits. Fixing it means deciding whether to recreate the link
-        # or move the real file, which is a human judgment call.
         suggested_fix_octal=None,
     )

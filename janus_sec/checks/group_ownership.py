@@ -17,12 +17,9 @@ import stat
 from dataclasses import dataclass
 from importlib import resources
 
+from janus_sec.checks._shared import build_finding
 from janus_sec.checks.context import FileContext
-from janus_sec.checks.identity import (
-    current_group_ids,
-    groupname_for_gid,
-    username_for_uid,
-)
+from janus_sec.checks.identity import current_group_ids, groupname_for_gid
 from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
 
 try:
@@ -102,17 +99,12 @@ def check(
         )
 
     owner_only = oct(stat.S_IMODE(mode) & stat.S_IRWXU)[2:].zfill(3)
-    return Finding(
-        path=str(ctx.path),
-        current_mode_octal=oct(stat.S_IMODE(mode))[2:].zfill(3),
-        current_mode_human=stat.filemode(mode),
-        risk_level=risk_level,
+    return build_finding(
+        ctx,
+        filesystem_type,
         check_type=CheckType.GROUP_READABLE,
+        risk_level=risk_level,
         reason=reason,
-        owner=username_for_uid(ctx.resolved_stat.st_uid),
-        expected_owner=username_for_uid(ctx.resolved_stat.st_uid),
-        is_symlink=ctx.is_symlink,
-        filesystem_type=filesystem_type,
         confidence=confidence,
         suggested_fix_octal=owner_only,
     )
