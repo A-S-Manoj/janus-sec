@@ -9,11 +9,10 @@ attempts.
 
 from __future__ import annotations
 
-import stat
-
+from janus_sec.checks._shared import build_finding
 from janus_sec.checks.context import FileContext
 from janus_sec.checks.identity import current_uid, username_for_uid
-from janus_sec.models import CheckType, Confidence, Finding, FilesystemType, RiskLevel
+from janus_sec.models import CheckType, Finding, FilesystemType, RiskLevel
 
 
 def check(ctx: FileContext, filesystem_type: FilesystemType) -> Finding | None:
@@ -25,13 +24,11 @@ def check(ctx: FileContext, filesystem_type: FilesystemType) -> Finding | None:
     if file_uid == my_uid:
         return None
 
-    mode = ctx.resolved_stat.st_mode
-    return Finding(
-        path=str(ctx.path),
-        current_mode_octal=oct(stat.S_IMODE(mode))[2:].zfill(3),
-        current_mode_human=stat.filemode(mode),
-        risk_level=RiskLevel.HIGH,
+    return build_finding(
+        ctx,
+        filesystem_type,
         check_type=CheckType.OWNERSHIP_MISMATCH,
+        risk_level=RiskLevel.HIGH,
         reason=(
             f"This file is owned by '{username_for_uid(file_uid)}', not you "
             f"('{username_for_uid(my_uid)}'). A credential file you rely on "
@@ -40,8 +37,5 @@ def check(ctx: FileContext, filesystem_type: FilesystemType) -> Finding | None:
         ),
         owner=username_for_uid(file_uid),
         expected_owner=username_for_uid(my_uid),
-        is_symlink=ctx.is_symlink,
-        filesystem_type=filesystem_type,
-        confidence=Confidence.HIGH,
         suggested_fix_octal=None,  # no auto-fix - would require chown/sudo
     )
