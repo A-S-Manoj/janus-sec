@@ -18,6 +18,11 @@ pytest -v
 The full test suite should pass cleanly before you start making changes.
 If it doesn't, please open an issue rather than assuming it's expected.
 
+To install test dependencies and run the test suite locally:
+
+pip install -e ".[dev]"
+pytest
+
 ## Making changes
 
 - **Every behavior change requires a test.** The test suite covers
