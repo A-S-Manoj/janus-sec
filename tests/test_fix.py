@@ -110,11 +110,13 @@ def test_apply_fix_aborts_if_file_becomes_symlink_before_chmod(
     assert stat.S_IMODE(real_lstat(victim).st_mode) == 0o644
 
 
-def test_apply_fix_for_finding_with_fix(tmp_path: Path) -> None:
+def test_apply_fix_for_finding_with_fix(tmp_path: Path, monkeypatch) -> None:
     f = tmp_path / "id_rsa"
     f.write_text("x")
     os.chmod(f, 0o644)
     finding = _finding_for(f, "600")
+
+    monkeypatch.setattr("janus_sec.fix.username_for_uid", lambda uid: "ezio")
 
     result = apply_fix_for_finding(finding)
 
@@ -143,3 +145,35 @@ def test_apply_fix_result_is_never_an_exception(tmp_path: Path) -> None:
         assert False, f"apply_fix raised instead of returning a FixResult: {e}"
 
     assert result.success is False
+
+def test_apply_fix_aborts_if_file_owner_changes_before_chmod(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    f = tmp_path / "id_rsa"
+    f.write_text("x")
+    os.chmod(f, 0o644)
+
+    real_lstat = os.lstat
+    call_count = 0
+
+    def swapping_lstat(path, *args, **kwargs):
+        nonlocal call_count
+        result = real_lstat(path, *args, **kwargs)
+        if Path(path) == f:
+            call_count += 1
+            if call_count >= 2:
+                class MockStat:
+                    st_mode = result.st_mode
+                    st_uid = 999999
+                return MockStat()
+        return result
+
+    monkeypatch.setattr(os, "lstat", swapping_lstat)
+    monkeypatch.setattr("janus_sec.fix.username_for_uid", lambda uid: "attacker" if uid == 999999 else "victim")
+
+    result = apply_fix(f, 0o600, expected_owner_name="victim")
+
+    assert result.success is False
+    assert result.error == "ownership changed to 'attacker' - refusing to modify"
+    assert result.before_mode_octal == "644"
+    assert result.after_mode_octal is None
