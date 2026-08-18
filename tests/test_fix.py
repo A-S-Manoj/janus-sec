@@ -110,11 +110,13 @@ def test_apply_fix_aborts_if_file_becomes_symlink_before_chmod(
     assert stat.S_IMODE(real_lstat(victim).st_mode) == 0o644
 
 
-def test_apply_fix_for_finding_with_fix(tmp_path: Path) -> None:
+def test_apply_fix_for_finding_with_fix(tmp_path: Path, monkeypatch) -> None:
     f = tmp_path / "id_rsa"
     f.write_text("x")
     os.chmod(f, 0o644)
     finding = _finding_for(f, "600")
+
+    monkeypatch.setattr("janus_sec.fix.username_for_uid", lambda uid: "ezio")
 
     result = apply_fix_for_finding(finding)
 
@@ -152,17 +154,18 @@ def test_apply_fix_aborts_if_file_owner_changes_before_chmod(
     os.chmod(f, 0o644)
 
     real_lstat = os.lstat
-    swapped = False
+    call_count = 0
 
     def swapping_lstat(path, *args, **kwargs):
-        nonlocal swapped
+        nonlocal call_count
         result = real_lstat(path, *args, **kwargs)
-        if not swapped and Path(path) == f:
-            swapped = True
-            class MockStat:
-                st_mode = result.st_mode
-                st_uid = 999999
-            return MockStat()
+        if Path(path) == f:
+            call_count += 1
+            if call_count >= 2:
+                class MockStat:
+                    st_mode = result.st_mode
+                    st_uid = 999999
+                return MockStat()
         return result
 
     monkeypatch.setattr(os, "lstat", swapping_lstat)
