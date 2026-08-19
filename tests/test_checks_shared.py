@@ -67,6 +67,7 @@ def test_build_finding_none_stat(tmp_path: Path) -> None:
         lstat_result=lstat_res,
         is_symlink=False,
         resolved_stat=None,
+        resolved_path=None,
         resolve_error="denied",
     )
 

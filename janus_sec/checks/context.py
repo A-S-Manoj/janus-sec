@@ -25,6 +25,11 @@ class FileContext:
     # permission to read its metadata. Checks must treat None as "this file
     # can't be inspected" rather than assuming any particular state.
     resolved_stat: os.stat_result | None
+    # The symlink target, resolved in the same pass as resolved_stat above, so
+    # a check reporting both a target's path and its mode describes a single
+    # observation. None when the file could not be inspected, or when the path
+    # could not be resolved at all (a symlink loop, say).
+    resolved_path: Path | None
     resolve_error: str | None   # "denied" | "broken_symlink" | None
 
 
@@ -45,10 +50,25 @@ def build_context(path: Path) -> FileContext:
         # happens when `path` is a symlink pointing at a target that's gone.
         resolve_error = "broken_symlink" if is_symlink else "denied"
 
+    # Resolved here rather than in the checks, for the reason this module
+    # exists: a check that resolves the path itself is reading the filesystem
+    # at a different moment from the stat above, and can end up describing the
+    # mode of one target and the path of another.
+    resolved_path: Path | None = None
+    if resolved_stat is not None:
+        try:
+            resolved_path = path.resolve()
+        except OSError:
+            # A symlink loop, or anything else the kernel refuses to resolve.
+            # Uninspectable rather than fatal - one pathological file should
+            # not end the scan.
+            resolved_path = None
+
     return FileContext(
         path=path,
         lstat_result=lstat_result,
         is_symlink=is_symlink,
         resolved_stat=resolved_stat,
+        resolved_path=resolved_path,
         resolve_error=resolve_error,
     )

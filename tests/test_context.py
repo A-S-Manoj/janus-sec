@@ -62,3 +62,27 @@ def test_permission_denied(tmp_path: Path) -> None:
         assert ctx.resolved_stat.st_mode & 0o777 == 0
     finally:
         os.chmod(f, 0o644)  # restore so tmp_path cleanup can delete it
+
+def test_resolved_path_captured_for_symlink(tmp_path: Path) -> None:
+    target_dir = tmp_path / "elsewhere"
+    target_dir.mkdir()
+    target = target_dir / "real_config"
+    target.write_text("x")
+    link = tmp_path / "config"
+    link.symlink_to(target)
+
+    ctx = build_context(link)
+
+    # Captured alongside resolved_stat, so checks can report the target without
+    # reading the filesystem a second time.
+    assert ctx.resolved_path == target.resolve()
+
+
+def test_resolved_path_is_none_for_broken_symlink(tmp_path: Path) -> None:
+    link = tmp_path / "broken_link"
+    link.symlink_to(tmp_path / "does_not_exist")
+
+    ctx = build_context(link)
+
+    assert ctx.resolved_stat is None
+    assert ctx.resolved_path is None
