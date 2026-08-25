@@ -10,18 +10,12 @@ new checks, additional default targets — are welcome.
 git clone https://github.com/A-S-Manoj/janus-sec.git
 cd janus-sec
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-pip install pytest pytest-asyncio
+pip install -e ".[dev]"
 pytest -v
 ```
 
 The full test suite should pass cleanly before you start making changes.
 If it doesn't, please open an issue rather than assuming it's expected.
-
-To install test dependencies and run the test suite locally:
-
-pip install -e ".[dev]"
-pytest
 
 ## Making changes
 
