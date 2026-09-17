@@ -98,4 +98,24 @@ def default_targets() -> list[TargetGroup]:
             expected_root=home,
             files=(".env",),
         ),
+        TargetGroup(
+            name="terraform",
+            expected_root=home / ".terraform.d",
+            files=("credentials.tfrc.json",),
+        ),
+        TargetGroup(
+            name="terraformrc",
+            expected_root=home,
+            files=(".terraformrc",),
+        ),
+        TargetGroup(
+            name="rclone",
+            expected_root=home / ".config" / "rclone",
+            files=("rclone.conf",),
+        ),
+        TargetGroup(
+            name="rclone-legacy",
+            expected_root=home,
+            files=(".rclone.conf",),
+        ),
     ]
